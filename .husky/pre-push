@@ -6,23 +6,17 @@ echo "Ì∫Ä Husky Pre-Push: Auto version bump triggered"
 branch=$(git rev-parse --abbrev-ref HEAD)
 echo "Current branch: $branch"
 
-# Only run on main branch
-# if [ "$branch" != "main" ]; then
-#   echo "Ìªë Skipping version bump ‚Äî not on main branch."
-#   exit 0
-# fi
-
-# Ensure Git working directory is clean
-if ! git diff-index --quiet HEAD --; then
-  echo "‚ö†Ô∏è Git working directory not clean. Please commit all changes before push."
-  exit 1
+# Check if there are changes to commit (staged or unstaged)
+if git diff --quiet && git diff --cached --quiet; then
+  echo "‚ö†Ô∏è No changes detected. Skipping version bump."
+  exit 0
 fi
 
 # Bump patch version in package.json
 new_version=$(npm version patch -m "Updated version to %s")
 echo "Ì¥Ñ New version: $new_version"
 
-# Stage files
+# Stage files for commit
 if [ -f package-lock.json ]; then
   git add package.json package-lock.json
 else

@@ -3,22 +3,19 @@ name: Auto Increment Version and Release
 on:
   push:
     branches:
-      - main  # Change to your branch if needed
+      - main
+
+permissions:
+  contents: write
 
 jobs:
-  bump-version:
+  version-bump:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Allow pushing commits
-      packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -27,26 +24,29 @@ jobs:
         run: npm install
 
       - name: Bump version
-        id: bump
+        id: bump_version
         run: |
           current_version=$(node -p "require('./package.json').version")
-          echo "Current version: $current_version"
-          npm version patch -m "Updated version to %s"
-          new_version=$(node -p "require('./package.json').version")
-          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          IFS='.' read -r major minor patch <<< "$current_version"
+          new_patch=$((patch + 1))
+          new_version="$major.$minor.$new_patch"
+          echo "New version: $new_version"
+          npm version "$new_version" --no-git-tag-version
+          echo "new_tag=v$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Push changes
+      - name: Commit version bump
         run: |
-          git push origin HEAD:${{ github.ref }} --follow-tags
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json
+          git commit -m "Updated version to ${{ steps.bump_version.outputs.new_tag }}" || echo "No changes to commit"
+          git push origin HEAD:main
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.bump.outputs.new_version }}
-          name: Release v${{ steps.bump.outputs.new_version }}
-          body: |
-            í´„ Auto-generated release
-            - Version: v${{ steps.bump.outputs.new_version }}
-            - Triggered by push to branch `${{ github.ref_name }}`
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          name: "Release ${{ steps.bump_version.outputs.new_tag }}"
+          body: "Automated release for version ${{ steps.bump_version.outputs.new_tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

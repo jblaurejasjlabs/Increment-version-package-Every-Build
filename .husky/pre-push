@@ -1,32 +1,25 @@
 #!/usr/bin/env sh
 
-echo "Ì∫Ä Husky Pre-Push: Auto version bump triggered"
+echo "Ì∫Ä Husky Pre-Push: Force version bump"
 
 # Get current branch
 branch=$(git rev-parse --abbrev-ref HEAD)
 echo "Current branch: $branch"
 
-# Check if there are changes to commit (staged or unstaged)
-if git diff --quiet && git diff --cached --quiet; then
-  echo "‚ö†Ô∏è No changes detected. Skipping version bump."
-  exit 0
-fi
-
-# Bump patch version in package.json
-new_version=$(npm version patch -m "Updated version to %s")
+# Bump patch version regardless of changes
+new_version=$(npm version patch -m "Auto version bump to %s")
 echo "Ì¥Ñ New version: $new_version"
 
-# Stage files for commit
+# Stage package.json and package-lock.json if exists
+git add package.json
 if [ -f package-lock.json ]; then
-  git add package.json package-lock.json
-else
-  git add package.json
+  git add package-lock.json
 fi
 
-# Commit version bump (skip if already committed)
-git commit -m "Updated version to ${new_version}" || echo "‚ö†Ô∏è No version changes to commit"
+# Commit version bump
+git commit -m "Auto version bump to ${new_version}" || echo "‚ö†Ô∏è No changes to commit"
 
-# Push updated version to remote
-git push origin HEAD || echo "‚ö†Ô∏è Push failed or nothing to push"
+# Push updated version back to the branch
+git push origin "$branch"
 
-echo "‚úÖ Husky Pre-Push: Version bump complete!"
+echo "‚úÖ Version bump complete!"

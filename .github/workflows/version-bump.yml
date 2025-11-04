@@ -3,13 +3,13 @@ name: Auto Increment Version and Release
 on:
   push:
     branches:
-      - main   # change to 'dev' or other branch if needed
+      - main  # Change to your branch if needed
 
 jobs:
   bump-version:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # Allow pushing commits
       packages: write
 
     steps:

@@ -4,15 +4,35 @@ echo "Ì∫Ä Husky Pre-Push: Auto version bump (local)"
 branch=$(git rev-parse --abbrev-ref HEAD)
 echo "Current branch: $branch"
 
+# Skip if last commit is a version bump
 last_commit_msg=$(git log -1 --pretty=%B)
-if echo "$last_commit_msg" | grep -q "^Auto version bu
+if echo "$last_commit_msg" | grep -q "^Auto version bump"; then
+  echo "‚ö†Ô∏è Last commit was a version bump. Skipping."
+  exit 0
+fi
+
+# Ensure working directory is clean
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "‚ùå Git working directory is not clean. Please commit or stash changes."
+  exit 1
+fi
+
+# Bump patch version without creating a git tag
 new_version=$(npm version patch --no-git-tag-version -m "Auto version bump to %s [ci skip]")
 echo "Ì¥Ñ New version: $new_version"
 
+# Stage package files
 git add package.json
 [ -f package-lock.json ] && git add package-lock.json
 
-git diff --cached --quiet || git commit -m "Auto version bump to ${new_version} [ci skip]"
+# Commit bump if changes exist
+if git diff --cached --quiet; then
+  echo "‚ö†Ô∏è No changes to commit"
+else
+  git commit -m "Auto version bump to ${new_version} [ci skip]"
+fi
+
+# Push commit to current branch
 git push origin "$branch"
 
-echo "‚úÖ Local version bump complete!"
+echo "‚úÖ Local version bump and push complete!"

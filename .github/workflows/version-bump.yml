@@ -1,12 +1,9 @@
-name: Auto Increment Version and Release
+name: Auto Version Bump
 
 on:
   push:
     branches:
-      - main
-
-permissions:
-  contents: write
+      - '**'
 
 jobs:
   version-bump:
@@ -14,53 +11,40 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: '20'
-
-      - name: Verify package.json exists
-        run: |
-          if [ ! -f "package.json" ]; then
-            echo "❌ package.json not found!"
-            exit 1
-          fi
-          echo "✅ package.json found."
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
 
       - name: Install dependencies
-        run: npm install || echo "No dependencies to install"
+        run: npm install
 
-      - name: Bump version
+      - name: Skip if last commit was a version bump
+        run: |
+          last_commit_msg=$(git log -1 --pretty=%B)
+          echo "Last commit: $last_commit_msg"
+          if echo "$last_commit_msg" | grep -q "Auto version bump"; then
+            echo "⚠️ Last commit was a version bump. Exiting..."
+            exit 0
+          fi
+
+      - name: Bump version and tag
         id: bump_version
         run: |
-          current_version=$(node -p "require('./package.json').version")
-          echo "Current version: $current_version"
-          major=$(echo "$current_version" | cut -d. -f1)
-          minor=$(echo "$current_version" | cut -d. -f2)
-          patch=$(echo "$current_version" | cut -d. -f3)
-          new_patch=$((patch + 1))
-          new_version="$major.$minor.$new_patch"
-          echo "New version: $new_version"
-          npm version "$new_version" --no-git-tag-version
-          echo "new_tag=v$new_version" >> "$GITHUB_OUTPUT"
-
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add package.json
-          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Updated version to ${{ steps.bump_version.outputs.new_tag }}"
-          git push origin HEAD:main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW_VERSION=$(npm version patch -m "Auto version bump to %s [ci skip]")
+          echo "Bumped version to $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_ENV
+          git push origin HEAD
+          git push origin --tags
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.bump_version.outputs.new_tag }}
-          name: "Release ${{ steps.bump_version.outputs.new_tag }}"
-          body: "Automated release for version ${{ steps.bump_version.outputs.new_tag }}"
+          tag_name: ${{ env.new_version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

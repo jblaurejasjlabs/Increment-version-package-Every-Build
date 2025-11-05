@@ -3,57 +3,61 @@ name: Auto Increment Version and Release
 on:
   push:
     branches:
-      - main   # Change to 'dev' or another branch if needed
+      - main
+
+permissions:
+  contents: write
 
 jobs:
-  bump-version:
+  version-bump:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # needed to push commits
-      packages: write
-
     steps:
-      # Step 1: Checkout your repository
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Step 2: Set up Node.js
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Step 3: Install dependencies (optional)
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
 
-      # Step 4: Bump version in package.json
-      - name: Bump version
-        id: bump
+      - name: Bump version safely
+        id: bump_version
         run: |
+          echo "Reading current version..."
           current_version=$(node -p "require('./package.json').version")
           echo "Current version: $current_version"
-          npm version patch -m "Updated version to %s"
-          new_version=$(node -p "require('./package.json').version")
+          
+          # Split the version into parts safely
+          major=$(echo "$current_version" | cut -d. -f1)
+          minor=$(echo "$current_version" | cut -d. -f2)
+          patch=$(echo "$current_version" | cut -d. -f3)
+
+          new_patch=$((patch + 1))
+          new_version="${major}.${minor}.${new_patch}"
+
           echo "New version: $new_version"
-          echo "new_version=$new_version" >> $GITHUB_OUTPUT
 
-      # Step 5: Push updated version commit
-      - name: Push changes
+          # Update package.json version
+          node -e "let pkg=require('./package.json'); pkg.version='$new_version'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+          echo "new_tag=v$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
         run: |
-          git push origin HEAD:${{ github.ref }} --follow-tags
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json
+          git commit -m "Updated version to ${{ steps.bump_version.outputs.new_tag }}" || echo "No changes to commit"
+          git push origin HEAD:main
 
-      # Step 6: Create GitHub Release automatically
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.bump.outputs.new_version }}
-          name: Release v${{ steps.bump.outputs.new_version }}
-          body: |
-            í´„ Auto-generated release
-            - Version: v${{ steps.bump.outputs.new_version }}
-            - Triggered by push to branch `${{ github.ref_name }}`
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          name: "Release ${{ steps.bump_version.outputs.new_tag }}"
+          body: "Automated release for version ${{ steps.bump_version.outputs.new_tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
